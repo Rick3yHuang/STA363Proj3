@@ -1,0 +1,11 @@
+---
+title: "STA363Proj3 - Formal Report"
+author: "Rickey huang"
+date: "4/19/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
