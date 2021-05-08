@@ -1,0 +1,202 @@
+---
+title: "STA363Proj3 - Formal Report"
+author: "Rickey huang"
+date: "4/19/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+# Library everything int this chunk
+# Packages for ggplot2
+library(rlang)
+library(ggplot2)
+# Packages for fitting and plotting trees
+library(rpart)
+library(rattle)
+library(rpart.plot)
+# Packages for fitting forests
+# Run the next line of code if the "randomForest" package is not installed before
+#install.packages("randomForest")
+library(randomForest)
+```
+
+```{r}
+# Load the data
+McDonalds <- read.csv("~/Desktop/2021Spring/STA-363/Projects/Project 3/STA363Proj3/McDonaldsProj3.csv")
+# Explore the correlation among the numeric data
+correlationMcDonalds <- subset(McDonalds, select = -Category)
+correlationMcDonalds <- subset(correlationMcDonalds, select = -Item)
+cor(correlationMcDonalds)
+# Remove variables representing same thing
+McDonalds <- subset(McDonalds, select = - Calories.from.Fat)
+McDonalds <- subset(McDonalds, select = - Total.Fat....Daily.Value.)
+McDonalds <- subset(McDonalds, select = - Saturated.Fat....Daily.Value.)
+McDonalds <- subset(McDonalds, select = - Cholesterol....Daily.Value.)
+McDonalds <- subset(McDonalds, select = - Sodium....Daily.Value.)
+McDonalds <- subset(McDonalds, select = - Carbohydrates....Daily.Value.)
+McDonalds <- subset(McDonalds, select = - Dietary.Fiber....Daily.Value.)
+McDonalds <- subset(McDonalds, select = - Item)
+```
+
+```{r hisCalories, fig.cap = "\\label{fig:hisCalories}Histogram for Calories", fig.asp = 0.6}
+ggplot(McDonalds, aes(x = Calories)) + 
+  geom_histogram(aes(y=..density..), bins = 30, color = 'darkblue', fill = 'steelblue') + 
+  geom_vline(aes(xintercept = mean(Calories)), color = 'lightgreen', linetype = 'dashed') +
+  geom_density(alpha=0.6, color = 'steelblue', fill = 'lightblue')
+mean(McDonalds$Calories)
+```
+
+```{r cptableFullTree1}
+# Set random seed
+set.seed(2021)
+# Train a tree model that includes every feature in the data set
+fullTree1 <- rpart(Calories ~ ., method = "anova", data = McDonalds)
+# Show the root node error for the full model
+printcp(fullTree1)
+# Compute the test MSE for the full model
+48872*0.1634231
+# Output the cp table
+knitr::kable(fullTree1$cptable, caption = "\\label{tab:cptableFullTree1}The cp table for the fullTree1")
+```
+
+```{r cpPlot1, fig.cap="\\label{fig:cpPlot1}cp plot for fullTree1", fig.asp = 0.6}
+# Compute the test MSE for the pruned tree
+48872*0.1650205
+# Plot the relationship between xerror and the cp values
+plotcp(fullTree1)
+```
+
+```{r Tree1, fig.cap="\\label{fig:Tree1}Visualization for Tree1", fig.asp=0.6}
+# Pruning the fullTree1
+Tree1 <- prune(fullTree1, cp = fullTree1$cptable[8,"CP"])
+# Create a visualization
+rpart.plot(Tree1, cex = 0.6)
+```
+
+```{r}
+# Compute the training RMSE
+pred.Tree1 <- matrix(NA, nrow = nrow(McDonalds), ncol = 1)
+pred.Tree1 <- predict(Tree1, newdata = McDonalds)
+residual.Tree1 <- McDonalds$Calories - pred.Tree1
+trainingRMSE <- sqrt((t(residual.Tree1)%*%(residual.Tree1))/nrow(McDonalds))
+trainingRMSE
+# Compute the training RMSE for the Tree1
+sqrt(48872)
+# Compute the test RMSE for the Tree1
+sqrt(8064.882)
+```
+
+```{r barCategory, fig.cap="\\label{fig:barCategory}the Distribution of the Responce Variable Category", fig.asp=0.5}
+# Visualizing the distribution of the response variable
+ggplot(McDonalds, aes(x = Category)) + 
+  geom_bar(width=0.7, color = 'darkblue', fill = 'steelblue') + 
+  geom_text(stat = 'count', aes(label=..count..), vjust=-0.3, size=3.5)
+```
+
+```{r cptableFullTree2}
+# Create a subset of Category data that would be served as the response variable
+McDonaldsCat <- subset(McDonalds, Category == "Beef & Pork" | Category == "Breakfast" | Category == "Chicken & Fish" | Category == "Desserts")
+# Set seed
+set.seed(2021)
+# train the fullTree2 model using all features in the data
+fullTree2 <- rpart(Category ~ ., method = "class", data = McDonaldsCat)
+# Show the RNE
+printcp(fullTree2)
+# Compute the test CER for the full model
+0.65574*0.3875
+# Output the cp table
+knitr::kable(fullTree2$cptable, caption = "\\label{tab:cptableFullTree2}The cp table for the fullTree2")
+```
+
+```{r fullTree2, fig.cap="\\label{fig:fullTree2}The Visualization for the fullTree2 Model, fig.asp = 0.6"}
+# Visualization for the fullTree2 model
+rpart.plot(fullTree2, box.palette = "RdYlGn")
+```
+
+```{r cpPlot2, fig.cap="\\label{fig:cpPlot2}cp plot for fullTree2", fig.asp=0.6}
+# Compute the test CER for the pruned tree
+0.65574*0.3625
+# Plot the relationship between xerror and the cp values
+plotcp(fullTree2)
+```
+
+```{r Tree2V1, fig.cap="\\label{fig:Tree2V1}The Detailed Visualization for Tree2", fig.asp = 0.6}
+# storing the optimal alpha in x
+x <- fullTree2$cptable[which.min(fullTree2$cptable[,"xerror"]),"CP"]
+# Pruning to get the Tree2 model
+Tree2 <- prune(fullTree2, cp = x)
+# Visualization 1 for the Tree2
+rpart.plot(Tree2)
+```
+
+```{r Tree2V2, fig.cap = "\\label{fig:Tree2V2}The Concise Visualization for Tree2", fig.asp = 0.6}
+# Visualization 2 for the Tree2
+prp(Tree2, box.palette = "RdYlGn")
+```
+
+```{r}
+# Compute the number of observations aren't predict correctly in the training data
+122*0.65574
+# Compute the test CER
+0.65574*0.3625
+# Compute the numebr of observations aren't correctly predicted in the test data
+122*0.23771
+```
+
+```{r}
+# Set seed
+set.seed(2021)
+# Traing the Bagged Forest Model
+BgForest <- randomForest(Calories ~ ., data = McDonalds, mtry = 15, importance = TRUE, ntree = 1000, compete = FALSE)
+BgForest
+# Compute the OBB error estimate
+predict.OOB.BgForest <- BgForest$predicted
+# Compute the test RMSE for the BgForest
+sqrt(mean((McDonalds$Calories - predict.OOB.BgForest)^2))
+# Compute hte improvement from the Tree1 Model
+(89.80469 - 31.20229)/89.80469
+```
+
+```{r}
+# Set seed
+set.seed(2021)
+# Train the Random Forest Model
+RdForest <- randomForest(Calories ~ ., data = McDonalds, mtry = sqrt(15), importance = TRUE, ntree = 1000, compete = FALSE)
+RdForest
+# Compute the OBB error estimate
+predict.OOB.RdForest <- RdForest$predicted
+# Compute the test RMSE for the BgForest
+sqrt(mean((McDonalds$Calories - predict.OOB.RdForest)^2))
+# Compute hte improvement from the Tree1 Model
+(89.80469 - 32.90963)/89.80469
+```
+
+```{r BgForestImp, fig.cap="\\label{fig:BgForestImp}The Importance Plot for BgForest", fig.asp=0.6}
+# Compute the percent increase in OOB error estimate
+importance(BgForest)[,1]
+# Plot the importance
+dotchart(importance(BgForest)[,1], xlab = "Percent Increase in the OOB Error Estimate")
+```
+
+```{r RdForestImp, fig.cap="\\label{fig:RdForestImp}The Importance Plot for RdForest", fig.asp=0.6}
+# Compute the percent increase in OOB error estimate
+importance(RdForest)[,1]
+# Plot the importance
+dotchart(importance(RdForest)[,1], xlab = "Percent Increase in the OOB Error Estimate")
+```
+
+```{r CarbohydratesPD, fig.cap="\\label{fig:CarbohydratesPD} Partial Dependence on Carbohydrates", fig.asp=0.6}
+# Visualize the partial dependence between Calories and Carbonhydrates
+partialPlot(BgForest, McDonalds, x.var = "Carbohydrates", ylab = "Calories")
+```
+
+```{r Total.FatPD, fig.cap="\\label{fig:Total.FatPD}Partial Dependence on Total.Fat",fig.asp=0.6}
+# Visualize the partial dependence between Calories and Total.Fat
+partialPlot(BgForest, McDonalds, x.var = "Total.Fat", ylab = "Calories")
+```
+
+
